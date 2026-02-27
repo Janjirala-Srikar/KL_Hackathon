@@ -1,41 +1,49 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const Tesseract = require("tesseract.js");
 const pdf = require("pdf-poppler");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const reportModel = require("../models/reportModel");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// 🔥 Switched model
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-exports.extractFileData = async (req, res) => {
+// Simple in-memory cache
+global.aiCache = global.aiCache || {};
+
+exports.extractFileData = async function (req, res) {
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: "Unauthorized: No user found" });
+    }
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No files uploaded" });
     }
 
-    let results = [];
+    const userId = req.user.id;
+    let combinedText = "";
+    let extractedFiles = [];
 
+    // ===============================
+    // STEP 1: EXTRACT TEXT FROM ALL FILES
+    // ===============================
     for (const file of req.files) {
       const filePath = file.path;
       const mimeType = file.mimetype;
       let extractedText = "";
 
-      // ===============================
       // IMAGE OCR
-      // ===============================
       if (mimeType.startsWith("image/")) {
-        console.log("Processing image:", file.originalname);
-
         const result = await Tesseract.recognize(filePath, "eng");
         extractedText = result.data.text;
       }
 
-      // ===============================
-      // PDF OCR USING POPPLER
-      // ===============================
+      // PDF OCR
       else if (mimeType === "application/pdf") {
-        console.log("Processing PDF:", file.originalname);
-
         const outputDir = "./uploads";
 
         const opts = {
@@ -57,41 +65,48 @@ exports.extractFileData = async (req, res) => {
 
         for (const img of images) {
           const imgPath = path.join(outputDir, img);
-
           const result = await Tesseract.recognize(imgPath, "eng");
           extractedText += result.data.text + "\n";
-
           fs.unlinkSync(imgPath);
         }
       }
 
-      else {
-        extractedText = "Unsupported file format";
-      }
-
-      // ===============================
-      // CLEAN OCR TEXT (optional improvement)
-      // ===============================
       extractedText = extractedText
         .replace(/[^\x00-\x7F]/g, "")
         .replace(/\s+/g, " ")
         .trim();
 
+      combinedText += extractedText + "\n\n";
+      extractedFiles.push({
+        name: file.originalname,
+        rawText: extractedText
+      });
+    }
+
+    // ===============================
+    // STEP 2: HASH CHECK (CACHE)
+    // ===============================
+    const hash = crypto
+      .createHash("sha256")
+      .update(combinedText)
+      .digest("hex");
+
+    let parsedResult;
+
+    if (global.aiCache[hash]) {
+      console.log("✅ Using cached AI result");
+      parsedResult = global.aiCache[hash];
+    } else {
+
       // ===============================
-      // SEND TO GEMINI
+      // STEP 3: GEMINI CALL (ONLY ONCE)
       // ===============================
       const prompt = `
-You are a medical data extraction and explanation assistant.
+You are a medical data extraction assistant.
 
-From the medical report text below:
+Extract structured medical data and explanation in English, Telugu and Hindi.
 
-1. Extract structured medical data.
-2. Provide a detailed explanation in:
-   - English (respectful tone, refer to user as "you")
-   - Telugu (respectful tone)
-   - Hindi (respectful tone)
-
-Return STRICT JSON only in this format:
+Return STRICT JSON in this format:
 
 {
   "structured_data": {
@@ -115,45 +130,82 @@ Return STRICT JSON only in this format:
 }
 
 Medical Report Text:
-${extractedText}
+${combinedText}
 `;
 
       const response = await model.generateContent(prompt);
       const aiText = response.response.text();
 
-      // Remove markdown formatting if present
       const cleanedAIText = aiText
         .replace(/```json/g, "")
         .replace(/```/g, "")
         .trim();
 
-      let parsedResult;
-
       try {
         parsedResult = JSON.parse(cleanedAIText);
       } catch (err) {
-        console.error("AI JSON Parse Error:", err);
         parsedResult = {
           structured_data: null,
           explanation: {
-            english: "AI response parsing failed.",
-            telugu: "AI సమాధానాన్ని విశ్లేషించడంలో సమస్య వచ్చింది.",
-            hindi: "AI उत्तर को पार्स करने में समस्या आई।"
-          },
-          raw_ai_output: cleanedAIText
+            english: "AI parsing failed.",
+            telugu: "AI విశ్లేషణలో లోపం.",
+            hindi: "AI विश्लेषण विफल।"
+          }
         };
       }
 
+      // Save to cache
+      global.aiCache[hash] = parsedResult;
+    }
+
+    // ===============================
+    // STEP 4: SAVE TO DATABASE
+    // ===============================
+    let results = [];
+
+    for (const fileData of extractedFiles) {
+
+      const dbResult = await reportModel.saveMedicalReport(
+        userId,
+        fileData.name,
+        fileData.rawText,
+        parsedResult.structured_data,
+        parsedResult.explanation
+      );
+
+      const reportId = dbResult.insertId;
+
+      if (
+        parsedResult.structured_data &&
+        parsedResult.structured_data.tests
+      ) {
+        for (const test of parsedResult.structured_data.tests) {
+          const numericValue = parseFloat(test.value);
+
+          if (!isNaN(numericValue)) {
+            await reportModel.saveMedicalTestValue(
+              userId,
+              reportId,
+              test.test_name,
+              numericValue,
+              test.unit,
+              test.reference_range
+            );
+          }
+        }
+      }
+
       results.push({
-        fileName: file.originalname,
+        id: reportId,
+        fileName: fileData.name,
         structured_data: parsedResult.structured_data,
-        explanation: parsedResult.explanation,
+        explanation: parsedResult.explanation
       });
     }
 
     res.json({
       message: "Files processed successfully",
-      data: results,
+      data: results
     });
 
   } catch (error) {
