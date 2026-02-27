@@ -79,7 +79,7 @@ const Login = () => {
       {/* Right Side - Image */}
       <div className="image-section">
         <img 
-          src="https://i.postimg.cc/wTQgyVKz/svgviewer-png-output.png" 
+          src="https://i.postimg.cc/66z9jc3h/nurse-(1).png" 
           alt="Nurse Illustration" 
           className="nurse-image"
         />

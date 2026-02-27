@@ -3,7 +3,10 @@ import Landing from "./components/Landing";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import Upload from "./components/Upload";
+import Trends from "./components/Trends";
+import Dashboard from "./components/DashBoard";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ChatBot from "./components/ChatBot";
 
 function App() {
   return (
@@ -15,7 +18,9 @@ function App() {
 
         <Route
           path="/dashboard"
-          element={<ProtectedRoute element={<Upload />} />}
+          element={
+            <ProtectedRoute element={<Dashboard />} />
+          }
         />
       </Routes>
     </BrowserRouter>

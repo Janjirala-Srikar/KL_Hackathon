@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../styles/landing.css";
 import { Link } from "react-router-dom";
+import DotGrid from "./DotGrid";
 
 
 const REPORT_ITEMS = [
@@ -95,50 +96,98 @@ function useScrollAnimate() {
 
 export default function App() {
   const ref = useScrollAnimate();
+  const videoSectionRef = useRef(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
     <>
-      {/* NAV */}
-      <nav>
-        <a href="#" className="nav-logo">
-          <span className="nav-logo-dot" />
-          LabLens
-        </a>
-        <ul className="nav-links">
-          
-          <li>
-            <Link to="/login" className="nav-cta">Login</Link>
-          </li>
-        </ul>
-      </nav>
-
       {/* HERO */}
-      <section className="hero">
+      <section className="hero" style={{ margin: 0, padding: '0 0 120px 0', overflow: 'visible', minHeight: '100vh', position: 'relative' }}>
+        <DotGrid 
+          className="hero-dot-grid" 
+          dotSize={8}
+          gap={15}
+          baseColor="#201731"
+          activeColor="#691500"
+          proximity={190}
+          shockRadius={350}
+          shockStrength={9}
+          resistance={750}
+          returnDuration={1.5}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, margin: 0, padding: 0 }}
+        />
+
+        {/* NAV - Glass Morphism Capsule Floating */}
+        <nav style={{ 
+          position: 'fixed', 
+          top: '30px', 
+          left: '50%', 
+          transform: 'translateX(-50%)', 
+          zIndex: 1000, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: '12px 15px',
+          // gap: '80px',
+          background: 'rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: '100px',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          maxWidth: scrolled ? '100%' : '98%',
+          width: '500px',
+        }}>
+          <a href="#" className="nav-logo">
+            <div className="logo">Quantera</div>
+          </a>
+          <ul className="nav-links">
+            <li>
+              <Link to="/register" className="nav-cta">Register</Link>
+            </li>
+            <li>
+              <Link to="/login" className="nav-cta">Login</Link>
+            </li>
+          </ul>
+        </nav>
         <div className="hero-badge">
           
         </div>
-        <h1>
+        <h1 style={{ position: 'relative', zIndex: 20 }} className="hi123">
           Lab reports, <em>finally</em>
           <br />
           explained clearly
         </h1>
-        <p className="hero-sub">
+        <p className="hero-sub" style={{ position: 'relative', zIndex: 20 }}>
           Turn complex lab reports into clear, human explanations.
         </p>
-        <div className="hero-actions">
-          <a href="#cta" className="btn-primary">Request Early Access</a>
-          <a href="#how-it-works" className="btn-ghost">
+        <div className="hero-actions" style={{ position: 'relative', zIndex: 20 }}>
+          <a href="#cta" className="btn-primary">Upload Medical Report</a>
+          <a
+            href="#"
+            className="btn-ghost"
+            onClick={e => {
+              e.preventDefault();
+              videoSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
             <span>▶</span> See how it works
           </a>
         </div>
 
         {/* DEMO REPORT */}
-        <div className="hero-visual">
+        <div className="hero-visual" style={{ position: 'relative', zIndex: 20 }}>
           <div className="report-header">
             <div className="report-dots">
               <span /><span /><span />
             </div>
-            <span className="report-title">Complete Blood Count · Processed by LabLens</span>
+            <span className="report-title">Complete Blood Count · Processed by Quantera</span>
           </div>
           <div className="report-body">
             <div>
@@ -160,7 +209,7 @@ export default function App() {
               <div className="report-summary">
                 <div className="report-summary-header">
                   <div className="report-summary-icon">✦</div>
-                  <span className="report-summary-label">LabLens Insight</span>
+                  <span className="report-summary-label">Quantera Insight</span>
                 </div>
                 <p>
                   Your hemoglobin and glucose levels are within healthy ranges. Your white blood cell count is slightly elevated, which may suggest your body is actively fighting an infection. Platelets are mildly low — not an immediate concern, but worth discussing with your doctor at your next visit.
@@ -235,26 +284,46 @@ export default function App() {
         </div>
       </section> */}
 
-      {/* DELIVERABLES */}
-      <section className="deliverables-section" id="deliverables">
-        <div className="deliverables-inner">
-          <div ref={ref(40)} className="animate-in">
-            <p className="section-label">Deliverables</p>
-            <h2 className="section-title">What we're shipping</h2>
-          </div>
-          <div className="deliverables-grid">
-            {DELIVERABLES.map((d, i) => (
-              <div className="deliverable-card animate-in" key={d.num} ref={ref(50 + i)}>
-                <div className="deliverable-num">{d.num}</div>
-                <div>
-                  <h3>{d.title}</h3>
-                  <p>{d.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+        {/* VIDEO DEMO */}
+      {/* VIDEO DEMO */}
+{/* VIDEO DEMO */}
+<section className="video-demo-section" id="video-demo" ref={videoSectionRef}>
+  <div className="video-demo-inner">
+    <div className="video-demo-content animate-in" ref={ref(40)}>
+      <p className="section-label">How It Works</p>
+      <h2 className="section-title">See Quantera in action</h2>
+      <p className="section-sub">
+        Watch how our AI-powered platform transforms complex lab reports into clear, understandable summaries in just seconds. Upload a report, get instant insights, and take control of your health.
+      </p>
+      <ul className="demo-benefits">
+        <li>Upload any lab report in PDF format</li>
+        <li>AI automatically parses and analyzes your results</li>
+        <li>Receive plain-English explanations</li>
+        <li>Get flagged abnormalities with context</li>
+      </ul>
+    </div>
+
+  <div className="video-demo-player animate-in" ref={ref(41)}>
+  <video
+    autoPlay
+    muted
+    loop
+    playsInline
+    style={{
+      width: "100%",
+      height: "100%",
+      borderRadius: "12px",
+      objectFit: "cover"
+    }}
+  >
+    <source
+      src="https://files.catbox.moe/v3swok.mp4"
+      type="video/mp4"
+    />
+  </video>
+</div>
+  </div>
+</section>
 
       {/* CTA */}
       <section className="cta-section" id="cta">
@@ -264,10 +333,7 @@ export default function App() {
           <p className="section-sub">
             Join the waitlist for early access. Be the first to experience healthcare clarity powered by AI.
           </p>
-          <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-            <a href="mailto:hello@lablens.ai" className="btn-primary">Request Early Access</a>
-            <a href="#how-it-works" className="btn-ghost">Learn more</a>
-          </div>
+
         </div>
       </section>
 
@@ -275,8 +341,12 @@ export default function App() {
       <footer>
   <div>
     <div className="footer-left">
-      <span className="nav-logo-dot" />
-      LabLens
+      <img 
+        src="https://files.catbox.moe/t8406d.svg" 
+        alt="Quantera Logo" 
+        style={{ height: '44px', width: 'auto', display: 'inline-block', marginRight: '8px' }}
+      />
+      
     </div>
     <p className="footer-tagline">
       AI-powered Lab Report Intelligence · Making Diagnostics Understandable
