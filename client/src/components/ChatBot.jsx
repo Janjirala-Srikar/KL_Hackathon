@@ -1,51 +1,108 @@
-import { useState, useRef, useEffect } from 'react';
-import '../Styles/ChatBot.css';
+import { useState, useRef, useEffect } from "react";
+import axios from "axios";
+import "../Styles/ChatBot.css";
 
 export default function ChatBot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, type: 'bot', text: 'Hi! How can I help you with your lab reports today?' }
+    {
+      id: 1,
+      type: "bot",
+      text: "Hi! How can I help you with your lab reports today?",
+    },
   ]);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (inputValue.trim() === '') return;
+  const handleSendMessage = async () => {
+    if (inputValue.trim() === "" || isLoading) return;
 
-    // Log to console
-    console.log('User message:', inputValue);
+    const userText = inputValue.trim();
+    const token = localStorage.getItem("token");
 
-    // Add user message to chat
+    console.log("Sending question:", userText);
+    console.log("Using token:", token);
+
     const userMessage = {
-      id: messages.length + 1,
-      type: 'user',
-      text: inputValue
+      id: Date.now(),
+      type: "user",
+      text: userText,
     };
-    setMessages([...messages, userMessage]);
-    setInputValue('');
 
-    // Simulate bot response (will be replaced with actual backend call)
-    setTimeout(() => {
+    setMessages((prev) => [...prev, userMessage]);
+    setInputValue("");
+    setIsLoading(true);
+
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/ask",
+        { question: userText },
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("Full API Response:", response.data);
+
       const botMessage = {
-        id: messages.length + 2,
-        type: 'bot',
-        text: 'Thanks for your message! Our team is analyzing your query.'
+        id: Date.now() + 1,
+        type: "bot",
+        text: response.data.answer,
       };
-      setMessages(prev => [...prev, botMessage]);
-      console.log('Bot response:', botMessage.text);
-    }, 500);
+
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Chatbot Error FULL:", error);
+
+      let errorText = "Server error occurred.";
+
+      if (error.response) {
+        console.log("Backend error response:", error.response.data);
+
+        errorText =
+          error.response.data?.message ||
+          "Something went wrong on the server.";
+
+        if (error.response.status === 401) {
+          errorText = "Authentication required. Please login again.";
+          localStorage.removeItem("token");
+          window.location.href = "/login";
+        }
+
+        if (error.response.status === 403) {
+          errorText = "Session expired. Please login again.";
+          localStorage.removeItem("token");
+          window.location.href = "/login";
+        }
+      }
+
+      const errorMessage = {
+        id: Date.now() + 2,
+        type: "bot",
+        text: errorText,
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -53,7 +110,6 @@ export default function ChatBot() {
 
   return (
     <>
-      {/* Floating Button */}
       <button
         className="chatbot-float-button"
         onClick={() => setIsOpen(!isOpen)}
@@ -73,10 +129,8 @@ export default function ChatBot() {
         </svg>
       </button>
 
-      {/* Chatbot Window */}
       {isOpen && (
         <div className="chatbot-container">
-          {/* Header */}
           <div className="chatbot-header">
             <div className="chatbot-header-content">
               <h3>Quantera Assistant</h3>
@@ -90,7 +144,6 @@ export default function ChatBot() {
             </button>
           </div>
 
-          {/* Messages */}
           <div className="chatbot-messages">
             {messages.map((message) => (
               <div
@@ -102,10 +155,18 @@ export default function ChatBot() {
                 </div>
               </div>
             ))}
+
+            {isLoading && (
+              <div className="chatbot-message bot">
+                <div className="chatbot-message-content">
+                  Analyzing your reports...
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="chatbot-input-area">
             <input
               type="text"
@@ -113,11 +174,13 @@ export default function ChatBot() {
               placeholder="Type your question..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
+              disabled={isLoading}
             />
             <button
               className="chatbot-send-btn"
               onClick={handleSendMessage}
+              disabled={isLoading}
             >
               <svg
                 width="18"
