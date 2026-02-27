@@ -1,43 +1,48 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const Tesseract = require("tesseract.js");
 const pdf = require("pdf-poppler");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const reportModel = require("../models/reportModel");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// 🔥 Switched model
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-exports.extractFileData = async (req, res) => {
+// Simple in-memory cache
+global.aiCache = global.aiCache || {};
+
+exports.extractFileData = async function (req, res) {
   try {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: "Unauthorized: No user found" });
     }
 
-    const userId = req.user.id;
-
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No files uploaded" });
     }
 
-    let results = [];
+    const userId = req.user.id;
+    let combinedText = "";
+    let extractedFiles = [];
 
+    // ===============================
+    // STEP 1: EXTRACT TEXT FROM ALL FILES
+    // ===============================
     for (const file of req.files) {
       const filePath = file.path;
       const mimeType = file.mimetype;
       let extractedText = "";
 
-      // ===============================
       // IMAGE OCR
-      // ===============================
       if (mimeType.startsWith("image/")) {
         const result = await Tesseract.recognize(filePath, "eng");
         extractedText = result.data.text;
       }
 
-      // ===============================
       // PDF OCR
-      // ===============================
       else if (mimeType === "application/pdf") {
         const outputDir = "./uploads";
 
@@ -71,8 +76,30 @@ exports.extractFileData = async (req, res) => {
         .replace(/\s+/g, " ")
         .trim();
 
+      combinedText += extractedText + "\n\n";
+      extractedFiles.push({
+        name: file.originalname,
+        rawText: extractedText
+      });
+    }
+
+    // ===============================
+    // STEP 2: HASH CHECK (CACHE)
+    // ===============================
+    const hash = crypto
+      .createHash("sha256")
+      .update(combinedText)
+      .digest("hex");
+
+    let parsedResult;
+
+    if (global.aiCache[hash]) {
+      console.log("✅ Using cached AI result");
+      parsedResult = global.aiCache[hash];
+    } else {
+
       // ===============================
-      // GEMINI STRUCTURING
+      // STEP 3: GEMINI CALL (ONLY ONCE)
       // ===============================
       const prompt = `
 You are a medical data extraction assistant.
@@ -103,7 +130,7 @@ Return STRICT JSON in this format:
 }
 
 Medical Report Text:
-${extractedText}
+${combinedText}
 `;
 
       const response = await model.generateContent(prompt);
@@ -113,8 +140,6 @@ ${extractedText}
         .replace(/```json/g, "")
         .replace(/```/g, "")
         .trim();
-
-      let parsedResult;
 
       try {
         parsedResult = JSON.parse(cleanedAIText);
@@ -129,22 +154,27 @@ ${extractedText}
         };
       }
 
-      // ===============================
-      // SAVE MAIN REPORT
-      // ===============================
+      // Save to cache
+      global.aiCache[hash] = parsedResult;
+    }
+
+    // ===============================
+    // STEP 4: SAVE TO DATABASE
+    // ===============================
+    let results = [];
+
+    for (const fileData of extractedFiles) {
+
       const dbResult = await reportModel.saveMedicalReport(
         userId,
-        file.originalname,
-        extractedText,
+        fileData.name,
+        fileData.rawText,
         parsedResult.structured_data,
         parsedResult.explanation
       );
 
       const reportId = dbResult.insertId;
 
-      // ===============================
-      // STEP 2: SAVE EACH TEST VALUE SEPARATELY
-      // ===============================
       if (
         parsedResult.structured_data &&
         parsedResult.structured_data.tests
@@ -167,7 +197,7 @@ ${extractedText}
 
       results.push({
         id: reportId,
-        fileName: file.originalname,
+        fileName: fileData.name,
         structured_data: parsedResult.structured_data,
         explanation: parsedResult.explanation
       });

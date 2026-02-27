@@ -11,7 +11,6 @@ const formatBytes = (bytes) => {
 
 const LANGUAGES = [
   { key: "english", label: "English", flag: "EN" },
-  { key: "telugu", label: "తెలుగు", flag: "TE" },
   { key: "hindi", label: "हिन्दी", flag: "HI" },
 ];
 
@@ -34,6 +33,11 @@ const Upload = () => {
   const navigate = useNavigate();
 
   const token = localStorage.getItem("token");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const synth = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
+  const voicesRef = useRef([]);
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
+  const stoppingRef = useRef(false);
 
   useEffect(() => {
     if (result) sessionStorage.setItem("labResult", JSON.stringify(result));
@@ -42,6 +46,32 @@ const Upload = () => {
   useEffect(() => {
     sessionStorage.setItem("labLang", activeLang);
   }, [activeLang]);
+
+  // If stored language is no longer available (e.g., Telugu removed), reset to English
+  useEffect(() => {
+    const keys = LANGUAGES.map(l => l.key);
+    if (!keys.includes(activeLang)) {
+      setActiveLang('english');
+    }
+  }, []);
+
+  // Load available voices for SpeechSynthesis
+  useEffect(() => {
+    if (!synth.current) return;
+
+    const load = () => {
+      const list = synth.current.getVoices() || [];
+      if (list.length) {
+        voicesRef.current = list;
+        setVoicesLoaded(true);
+      }
+    };
+
+    load();
+    synth.current.onvoiceschanged = load;
+
+    return () => { if (synth.current) synth.current.onvoiceschanged = null; };
+  }, []);
 
   const handleFile = (incoming) => {
     setError("");
@@ -137,6 +167,100 @@ const Upload = () => {
       return val < parseFloat(lo) ? "status-low" : "status-high";
     }
     return "";
+  };
+
+  const getLanguageCode = (lang) => {
+    const langMap = {
+      english: "en-US",
+      hindi: "hi-IN",
+    };
+    return langMap[lang] || "en-US";
+  };
+
+  const findVoiceForLang = (prefix) => {
+    const list = voicesRef.current || [];
+    if (!list.length) return null;
+    const p = prefix.toLowerCase();
+    let v = list.find(v => v.lang && v.lang.toLowerCase().startsWith(p));
+    if (!v) v = list.find(v => v.name && v.name.toLowerCase().includes(p));
+    return v || null;
+  };
+
+  const handleSpeak = () => {
+    const text = result?.explanation?.[activeLang];
+    if (!text) { setError('No text available to speak'); return; }
+
+    if (!synth.current) { setError('Speech Synthesis not supported in this browser'); return; }
+
+    // If currently speaking -> stop
+    if (isSpeaking) {
+      stoppingRef.current = true;
+      synth.current.cancel();
+      setIsSpeaking(false);
+      setTimeout(() => { stoppingRef.current = false; }, 500);
+      return;
+    }
+
+    // Ensure voices are loaded (best-effort)
+    const langCode = getLanguageCode(activeLang);
+    const prefix = langCode.split('-')[0];
+    const preferredVoice = findVoiceForLang(prefix);
+
+    // Split long text into smaller chunks to avoid browser TTS truncation
+    const MAX_CHUNK = 240; // chars
+    const sentences = text.replace(/\s+/g, ' ').split(/(?<=[.?!])\s+/);
+    let chunks = [];
+    let buffer = '';
+    for (const s of sentences) {
+      if ((buffer + ' ' + s).trim().length <= MAX_CHUNK) {
+        buffer = (buffer + ' ' + s).trim();
+      } else {
+        if (buffer) chunks.push(buffer);
+        if (s.length <= MAX_CHUNK) buffer = s.trim();
+        else {
+          // further split long sentence
+          for (let i = 0; i < s.length; i += MAX_CHUNK) {
+            chunks.push(s.substring(i, i + MAX_CHUNK).trim());
+          }
+          buffer = '';
+        }
+      }
+    }
+    if (buffer) chunks.push(buffer);
+
+    if (!chunks.length) { setError('No text to speak'); return; }
+
+    let idx = 0;
+    setError('');
+    setIsSpeaking(true);
+
+    const speakNext = () => {
+      if (stoppingRef.current) { setIsSpeaking(false); stoppingRef.current = false; return; }
+      if (idx >= chunks.length) { setIsSpeaking(false); return; }
+      const u = new SpeechSynthesisUtterance(chunks[idx]);
+      u.lang = langCode;
+      if (preferredVoice) u.voice = preferredVoice;
+      u.rate = 0.95; u.pitch = 1; u.volume = 1;
+      u.onend = () => {
+        idx += 1;
+        // Small delay between chunks to be safe
+        setTimeout(() => speakNext(), 80);
+      };
+      u.onerror = (e) => {
+        console.error('TTS chunk error', e);
+        if (e && (e.error === 'interrupted' || stoppingRef.current)) {
+          stoppingRef.current = false; setIsSpeaking(false); return;
+        }
+        setError('Speech error: ' + (e?.error || 'unknown'));
+        setIsSpeaking(false);
+      };
+      synth.current.speak(u);
+    };
+
+    // Start speaking
+    idx = 0;
+    synth.current.cancel();
+    speakNext();
   };
 
   return (
@@ -255,7 +379,14 @@ const Upload = () => {
                     <button
                       key={lang.key}
                       className={activeLang === lang.key ? "lang-btn lang-active" : "lang-btn"}
-                      onClick={() => setActiveLang(lang.key)}
+                      onClick={() => {
+                        if (isSpeaking && synth.current) {
+                          stoppingRef.current = true;
+                          synth.current.cancel();
+                          setTimeout(() => { stoppingRef.current = false; }, 500);
+                        }
+                        setActiveLang(lang.key);
+                      }}
                     >
                       <span className="lang-flag">{lang.flag}</span>
                       <span className="lang-label">{lang.label}</span>
@@ -264,6 +395,13 @@ const Upload = () => {
                 </div>
 
                 <div className="explanation-scroll">
+                  <button
+                    className={`voice-btn ${isSpeaking ? 'voice-btn-active' : ''}`}
+                    onClick={handleSpeak}
+                    title={isSpeaking ? 'Stop' : 'Listen'}
+                  >
+                    {isSpeaking ? '⏹️' : '🔊'}
+                  </button>
                   <div className="explanation-content">
                     {formatExplanation(result.explanation?.[activeLang])}
                   </div>

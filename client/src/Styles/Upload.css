@@ -411,6 +411,8 @@ tr.status-low    td:first-child { border-left: 2px solid var(--status-low-dot); 
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
   padding: 1.25rem 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
 }
 .explanation-scroll::-webkit-scrollbar { width: 3px; }
 .explanation-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -420,6 +422,28 @@ tr.status-low    td:first-child { border-left: 2px solid var(--status-low-dot); 
   flex-direction: column;
   gap: 0.5rem;
 }
+
+/* Voice button in explanation panel (non-circular, sticky) */
+.voice-btn {
+  position: sticky;
+  top: 1.1rem;
+  z-index: 10;
+  align-self: flex-end;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: rgba(219,216,227,0.06);
+  border: 1px solid var(--border-hover);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.05rem;
+  padding: 0;
+}
+.voice-btn:hover { transform: scale(1.03); }
+.voice-btn-active { background: linear-gradient(135deg, rgba(122,196,154,0.12), rgba(42,36,56,0.08)); border-color: var(--status-normal-dot); color: var(--status-normal-dot); }
 
 /* =========================================================
    EXPLANATION TEXT
