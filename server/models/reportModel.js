@@ -64,7 +64,7 @@ const saveEmbedding = async (
       userId,
       reportId,
       summaryText,
-      JSON.stringify(embeddingArray), // safer for MySQL
+      JSON.stringify(embeddingArray),
     ]
   );
 
@@ -86,37 +86,39 @@ const getUserEmbeddings = async (userId) => {
 };
 
 // ==========================================
-// CHAT HISTORY - SEMANTIC GROUPING
+// CHAT HISTORY - TAG BASED GROUPING
 // ==========================================
 
-// Save chat
+// Save chat with tags
 const saveChatHistory = async (
   userId,
   groupId,
   question,
   answer,
-  embedding
+  embedding,
+  tags
 ) => {
   const [result] = await pool.execute(
     `INSERT INTO chat_history
-     (user_id, group_id, question, answer, embedding)
-     VALUES (?, ?, ?, ?, ?)`,
+     (user_id, group_id, question, answer, embedding, tags, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW())`,
     [
       userId,
       groupId,
       question,
       answer,
       JSON.stringify(embedding),
+      JSON.stringify(tags),
     ]
   );
 
   return result;
 };
 
-// Get all previous question embeddings (for grouping)
+// 🔥 UPDATED — Only select needed fields
 const getUserQuestions = async (userId) => {
   const [rows] = await pool.execute(
-    `SELECT group_id, embedding
+    `SELECT group_id, tags
      FROM chat_history
      WHERE user_id = ?`,
     [userId]
@@ -136,6 +138,36 @@ const getGroupHistory = async (userId, groupId) => {
   );
 
   return rows;
+};
+
+// 🔥 Optional: Get all distinct groups for user
+const getUserGroups = async (userId) => {
+  const [rows] = await pool.execute(
+    `SELECT DISTINCT group_id
+     FROM chat_history
+     WHERE user_id = ?`,
+    [userId]
+  );
+
+  return rows;
+};
+
+// 🔥 Optional: Delete empty group safeguard
+const deleteGroupIfEmpty = async (userId, groupId) => {
+  const [rows] = await pool.execute(
+    `SELECT COUNT(*) as count
+     FROM chat_history
+     WHERE user_id = ? AND group_id = ?`,
+    [userId, groupId]
+  );
+
+  if (rows[0].count === 0) {
+    await pool.execute(
+      `DELETE FROM chat_history
+       WHERE user_id = ? AND group_id = ?`,
+      [userId, groupId]
+    );
+  }
 };
 
 // ==========================================
@@ -197,7 +229,7 @@ const getAllTestHistory = async (userId) => {
 };
 
 // ==========================================
-// EXPORTS (ONLY ONE EXPORT OBJECT)
+// EXPORTS
 // ==========================================
 module.exports = {
   saveMedicalReport,
@@ -207,6 +239,8 @@ module.exports = {
   saveChatHistory,
   getUserQuestions,
   getGroupHistory,
+  getUserGroups,
+  deleteGroupIfEmpty,
   getMedicalReportsByUserId,
   getMedicalReportById,
   getTestHistoryByName,

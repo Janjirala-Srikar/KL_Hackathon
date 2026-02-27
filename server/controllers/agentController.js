@@ -6,32 +6,87 @@ const {
 const reportModel = require("../models/reportModel");
 const crypto = require("crypto");
 
-// =========================================
-// 🔥 GROQ CLIENT
-// =========================================
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// =========================================
-// 🔥 Safe embedding parser
-// =========================================
-const parseEmbedding = (value) => {
+// -----------------------------
+// Safe JSON parser
+// -----------------------------
+const parseJSON = (value) => {
   if (!value) return null;
-
-  if (Array.isArray(value)) return value;
-
-  if (Buffer.isBuffer(value)) {
-    return JSON.parse(value.toString());
-  }
-
-  if (typeof value === "string") {
+  if (typeof value === "object") return value;
+  try {
     return JSON.parse(value);
+  } catch {
+    return null;
   }
-
-  return value;
 };
 
+// -----------------------------
+// Medical Intent Detection
+// -----------------------------
+const isMedicalQuestion = (question) => {
+  const medicalKeywords = [
+    "blood", "report", "hemoglobin", "hb",
+    "glucose", "sugar", "cholesterol",
+    "anemia", "tlc", "hba1c",
+    "rbc", "wbc", "platelet",
+    "test", "level", "count",
+    "thyroid", "creatinine"
+  ];
+
+  return medicalKeywords.some(keyword =>
+    question.toLowerCase().includes(keyword)
+  );
+};
+
+// -----------------------------
+// Generate Tags
+// -----------------------------
+const generateTags = async (question) => {
+  const completion = await groq.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    messages: [
+      {
+        role: "system",
+        content: `
+Generate 2-3 short single-word topic tags.
+Return ONLY a JSON array.
+No explanation.
+Example:
+["identity","name"]
+        `
+      },
+      { role: "user", content: question }
+    ],
+    temperature: 0.2,
+    max_tokens: 100,
+  });
+
+  const raw = completion.choices[0]?.message?.content || "";
+
+  try {
+    // Extract JSON array using regex
+    const match = raw.match(/\[[^\]]+\]/);
+
+    if (!match) return [];
+
+    const parsed = JSON.parse(match[0]);
+
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map(tag => tag.toLowerCase());
+
+  } catch (err) {
+    console.log("Tag parse failed:", raw);
+    return [];
+  }
+};
+
+// -----------------------------
+// MAIN AGENT
+// -----------------------------
 exports.askAgent = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -41,58 +96,115 @@ exports.askAgent = async (req, res) => {
       return res.status(400).json({ message: "Question is required" });
     }
 
-    // =========================================
-    // STEP 1: Generate embedding for question
-    // =========================================
+    // STEP 1: Intent
+    const medicalIntent = isMedicalQuestion(question);
+
+    // STEP 2: Embedding + Tags
     const questionEmbedding = await generateEmbedding(question);
+    const newTags = await generateTags(question);
 
-    // =========================================
-    // STEP 2: SEMANTIC GROUPING
-    // =========================================
-    const previousQuestions = await reportModel.getUserQuestions(userId);
+    // STEP 3: Smart Tag Grouping (60% rule)
+    const previousChats = await reportModel.getUserQuestions(userId);
 
-    let bestMatchGroup = null;
-    let highestSimilarity = 0;
+    let groupId = null;
 
-    for (const q of previousQuestions) {
-      const storedEmbedding = parseEmbedding(q.embedding);
-      if (!storedEmbedding) continue;
+    for (const chat of previousChats) {
+      const oldTags = parseJSON(chat.tags);
+      if (!oldTags || oldTags.length === 0) continue;
 
-      const similarity = cosineSimilarity(
-        questionEmbedding,
-        storedEmbedding
+      const overlap = oldTags.filter(tag =>
+        newTags.includes(tag)
       );
 
-      if (similarity > highestSimilarity) {
-        highestSimilarity = similarity;
-        bestMatchGroup = q.group_id;
+      const similarityScore = overlap.length / newTags.length;
+
+      if (similarityScore >= 0.3) {
+        groupId = chat.group_id;
+        break;
       }
     }
 
-    let groupId;
-
-    if (highestSimilarity > 0.45) {
-      groupId = bestMatchGroup;
-      console.log("🔁 Using existing semantic group");
-    } else {
+    if (!groupId) {
       groupId = crypto.randomUUID();
-      console.log("🆕 Creating new semantic group");
     }
 
-    // =========================================
-    // STEP 3: Retrieve Medical Report Context (RAG)
-    // =========================================
+    // STEP 4: Retrieve Group Memory
+    const groupHistory = await reportModel.getGroupHistory(
+      userId,
+      groupId
+    );
+
+    let conversationContext = "";
+
+    groupHistory.slice(-5).forEach((item) => {
+      conversationContext += `User: ${item.question}\n`;
+      conversationContext += `AI: ${item.answer}\n\n`;
+    });
+
+    // ======================================================
+    // 🔥 NON MEDICAL MODE
+    // ======================================================
+    if (!medicalIntent) {
+
+      const prompt = `
+Previous Conversation:
+${conversationContext}
+
+User Question:
+${question}
+
+Instructions:
+- Remember previous user details.
+- If user shared their name earlier, use it.
+- Answer naturally.
+`;
+
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: "You are a smart assistant with memory."
+          },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      });
+
+      const answer =
+        completion.choices[0]?.message?.content || "Okay!";
+
+      await reportModel.saveChatHistory(
+        userId,
+        groupId,
+        question,
+        answer,
+        questionEmbedding,
+        newTags
+      );
+
+      return res.json({
+        groupId,
+        tags: newTags,
+        answer,
+      });
+    }
+
+    // ======================================================
+    // 🔥 MEDICAL MODE (RAG)
+    // ======================================================
+
     const reports = await reportModel.getUserEmbeddings(userId);
 
     if (!reports || reports.length === 0) {
       return res.status(400).json({
-        message: "No medical reports found for this user",
+        message: "No medical reports found",
       });
     }
 
     let scoredReports = reports.map((r) => {
-      const reportEmbedding = parseEmbedding(r.embedding);
-
+      const reportEmbedding = parseJSON(r.embedding);
       if (!reportEmbedding) {
         return { summary: r.summary_text, similarity: 0 };
       }
@@ -114,66 +226,37 @@ exports.askAgent = async (req, res) => {
       medicalContext += `Medical Report ${i + 1}:\n${r.summary}\n\n`;
     });
 
-    // =========================================
-    // STEP 4: Retrieve Group Conversation History
-    // =========================================
-    const groupHistory = await reportModel.getGroupHistory(
-      userId,
-      groupId
-    );
-
-    let conversationContext = "";
-
-    const recentHistory = groupHistory.slice(-5);
-
-    recentHistory.forEach((item) => {
-      conversationContext += `User: ${item.question}\n`;
-      conversationContext += `AI: ${item.answer}\n\n`;
-    });
-
-    // =========================================
-    // STEP 5: Build Prompt
-    // =========================================
     const prompt = `
-You are an advanced medical AI assistant with long-term memory.
+You are an advanced medical AI assistant.
 
 Patient Medical History:
 ${medicalContext}
 
-Previous Related Conversation:
+Previous Conversation:
 ${conversationContext}
 
 User Question:
 ${question}
 
 Instructions:
-1. Analyze relevant medical history.
-2. Compare values if needed.
-3. Detect trends if applicable.
-4. Provide reasoning before conclusion.
-5. Answer clearly in:
-   - English
-   - Hindi
-6. Add final note:
+- Analyze medical data carefully.
+- Compare values if needed.
+- Detect trends if applicable.
+- Answer clearly in English and Hindi.
+- Add final note:
 "This is AI-generated information. Please consult a licensed physician."
 `;
 
-    // =========================================
-    // STEP 6: GROQ LLM RESPONSE
-    // =========================================
     const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       messages: [
         {
           role: "system",
           content:
-            "You are a professional medical AI assistant with reasoning capability.",
+            "You are a professional medical AI assistant with reasoning capability."
         },
-        {
-          role: "user",
-          content: prompt,
-        },
+        { role: "user", content: prompt }
       ],
-      model: "llama-3.3-70b-versatile",
       temperature: 0.4,
       max_tokens: 1000,
     });
@@ -181,24 +264,18 @@ Instructions:
     const answer =
       completion.choices[0]?.message?.content || "";
 
-    if (!answer) {
-      throw new Error("Empty response from Groq");
-    }
-
-    // =========================================
-    // STEP 7: Save Chat History
-    // =========================================
     await reportModel.saveChatHistory(
       userId,
       groupId,
       question,
       answer,
-      questionEmbedding
+      questionEmbedding,
+      newTags
     );
 
     res.json({
       groupId,
-      similarityScore: highestSimilarity,
+      tags: newTags,
       answer,
     });
 
