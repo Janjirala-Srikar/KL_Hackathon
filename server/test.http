@@ -27,7 +27,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjQwMDAxLCJlb
 Content-Type: application/json
 
 {
-  "question": "Is my HbA1c level high?"
+  "question": "Hello"
 }
 
 @baseUrl = http://localhost:5000
@@ -39,7 +39,7 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "question": "What was my most recent abnormal lab result?"
+  "question": "Who Am I?"
 }
 
 ### 2️⃣ Glucose Comparison

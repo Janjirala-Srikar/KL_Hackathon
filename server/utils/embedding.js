@@ -14,36 +14,40 @@ let tokenizer = null;
 async function initializeModel() {
   if (model && tokenizer) return;
 
-  console.log("Loading MiniLM embedding model...");
+  console.log("🔄 Loading MiniLM embedding model...");
   tokenizer = await AutoTokenizer.from_pretrained(
     "Xenova/all-MiniLM-L6-v2"
   );
   model = await AutoModel.from_pretrained(
     "Xenova/all-MiniLM-L6-v2"
   );
-  console.log("MiniLM loaded successfully!");
+  console.log("✅ MiniLM loaded successfully!");
 }
 
 // ==========================================
-// MEAN POOLING (Correct 3D Handling)
+// CORRECT MEAN POOLING (Batch Safe)
 // ==========================================
 function meanPooling(lastHiddenState, attentionMask) {
+  const [batchSize, seqLength, hiddenSize] = lastHiddenState.dims;
   const data = lastHiddenState.data;
 
-  // MiniLM output dims = [batchSize, seqLength, hiddenSize]
-  const [batchSize, seqLength, hiddenSize] = lastHiddenState.dims;
-
+  // We only process first batch (batchSize = 1)
   const meanPooled = new Array(hiddenSize).fill(0);
   let validTokens = 0;
 
   for (let i = 0; i < seqLength; i++) {
-    // Skip padding tokens
-    if (attentionMask && attentionMask[i] === 0) continue;
+    const maskValue =
+      attentionMask && attentionMask.data
+        ? attentionMask.data[i]
+        : attentionMask?.[i];
+
+    if (maskValue === 0) continue;
 
     validTokens++;
 
     for (let j = 0; j < hiddenSize; j++) {
-      meanPooled[j] += data[i * hiddenSize + j];
+      const index = i * hiddenSize + j;
+      meanPooled[j] += data[index];
     }
   }
 
@@ -77,22 +81,19 @@ function cosineSimilarity(vecA, vecB) {
     return 0;
   }
 
-  const dotProduct = vecA.reduce(
-    (sum, a, i) => sum + a * vecB[i],
-    0
-  );
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
 
-  const magnitudeA = Math.sqrt(
-    vecA.reduce((sum, a) => sum + a * a, 0)
-  );
+  for (let i = 0; i < vecA.length; i++) {
+    dot += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
 
-  const magnitudeB = Math.sqrt(
-    vecB.reduce((sum, b) => sum + b * b, 0)
-  );
+  if (normA === 0 || normB === 0) return 0;
 
-  if (magnitudeA === 0 || magnitudeB === 0) return 0;
-
-  return dotProduct / (magnitudeA * magnitudeB);
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 // ==========================================
@@ -111,28 +112,23 @@ async function generateEmbedding(text) {
     const encoded = tokenizer(trimmed, {
       padding: true,
       truncation: true,
+      return_tensors: "pt",
     });
 
     const output = await model(encoded);
 
-    const embedding = meanPooling(
+    const pooled = meanPooling(
       output.last_hidden_state,
-      output.attention_mask?.data || output.attention_mask
+      encoded.attention_mask
     );
 
-    const normalizedEmbedding = normalizeVector(embedding);
+    const normalized = normalizeVector(pooled);
 
-    console.log(
-      "Embedding length:",
-      normalizedEmbedding.length
-    );
+    console.log("Embedding length:", normalized.length);
 
-    return normalizedEmbedding;
+    return normalized;
   } catch (error) {
-    console.error(
-      "Local Embedding Error:",
-      error.message
-    );
+    console.error("❌ Local Embedding Error:", error.message);
     throw error;
   }
 }
