@@ -1,9 +1,24 @@
-// utils/embedding.js
+// ==========================================
+// utils/embedding.js (FIXED FOR NODE v20)
+// ==========================================
 
-const { env, AutoTokenizer, AutoModel } = require("@xenova/transformers");
+// We cannot use require() because transformers is ESM.
+// So we load it dynamically.
 
-env.allowLocalModels = true;
-env.allowRemoteModels = true;
+let env, AutoTokenizer, AutoModel;
+
+async function loadTransformers() {
+  if (env && AutoTokenizer && AutoModel) return;
+
+  const transformers = await import("@xenova/transformers");
+
+  env = transformers.env;
+  AutoTokenizer = transformers.AutoTokenizer;
+  AutoModel = transformers.AutoModel;
+
+  env.allowLocalModels = true;
+  env.allowRemoteModels = true;
+}
 
 let model = null;
 let tokenizer = null;
@@ -14,13 +29,18 @@ let tokenizer = null;
 async function initializeModel() {
   if (model && tokenizer) return;
 
+  await loadTransformers(); // 👈 Important fix
+
   console.log("🔄 Loading MiniLM embedding model...");
+
   tokenizer = await AutoTokenizer.from_pretrained(
     "Xenova/all-MiniLM-L6-v2"
   );
+
   model = await AutoModel.from_pretrained(
     "Xenova/all-MiniLM-L6-v2"
   );
+
   console.log("✅ MiniLM loaded successfully!");
 }
 
@@ -31,7 +51,6 @@ function meanPooling(lastHiddenState, attentionMask) {
   const [batchSize, seqLength, hiddenSize] = lastHiddenState.dims;
   const data = lastHiddenState.data;
 
-  // We only process first batch (batchSize = 1)
   const meanPooled = new Array(hiddenSize).fill(0);
   let validTokens = 0;
 
@@ -86,9 +105,12 @@ function cosineSimilarity(vecA, vecB) {
   let normB = 0;
 
   for (let i = 0; i < vecA.length; i++) {
-    dot += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
+    dot += vecA[i] * vecA[i];
     normB += vecB[i] * vecB[i];
+  }
+
+  for (let i = 0; i < vecA.length; i++) {
+    normA += vecA[i] * vecA[i];
   }
 
   if (normA === 0 || normB === 0) return 0;

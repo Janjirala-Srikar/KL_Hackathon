@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 import requests
 import math
 import re
+from grok_recommendations import display_recommendations
 
 # ─────────────────────────────────────────────
 # PAGE CONFIG
@@ -268,6 +269,36 @@ with st.sidebar:
     with c2:
         if st.button("Clear", use_container_width=True):
             st.cache_data.clear(); st.toast("Cleared!")
+    
+    # ─ Groq API Testing ─
+    st.markdown("---")
+    st.markdown("### 🤖 Groq AI Settings")
+    with st.expander("🔑 Test Groq API Key"):
+        st.markdown("""
+        **Need a Groq API key?**
+        1. Visit [console.groq.com](https://console.groq.com)
+        2. Create/copy your API key
+        3. Add to `.streamlit/secrets.toml`:
+           ```
+           GROQ_API_KEY = "your-key-here"
+           ```
+        4. Restart Streamlit
+        """)
+        
+        if st.button("✅ Test Groq Connection", use_container_width=True):
+            try:
+                groq_key = st.secrets.get("GROQ_API_KEY")
+                if not groq_key or groq_key == "your-groq-api-key-here":
+                    st.error("❌ API key not configured. Add GROQ_API_KEY to secrets.toml")
+                else:
+                    from grok_recommendations import get_available_models
+                    models = get_available_models(groq_key)
+                    if models:
+                        st.success(f"✅ Connected! Available models: {', '.join(models[:3])}")
+                    else:
+                        st.warning("⚠️ Could not fetch models. Check your API key at https://console.groq.com")
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
 
 # ─────────────────────────────────────────────
 # FETCH — zero st.* calls inside (cached function)
@@ -728,77 +759,149 @@ with tab2:
 # TAB 3 — ALL BIOMARKERS (full table)
 # ══════════════════════════════════════════════
 with tab3:
-    # Filter
-    fcol1, fcol2 = st.columns([2, 3])
-    with fcol1:
-        trend_filter = st.selectbox("Filter by trend", ["All", "Increased", "Decreased", "Stable"])
-    with fcol2:
-        status_filter = st.selectbox("Filter by range status", ["All", "Above Range", "In Range", "Below Range"])
+    # Two-column layout: left for biomarkers, right for recommendations
+    left_col, right_col = st.columns([2.2, 1.3])
+    
+    with left_col:
+        # Filter
+        fcol1, fcol2 = st.columns([2, 3])
+        with fcol1:
+            trend_filter = st.selectbox("Filter by trend", ["All", "Increased", "Decreased", "Stable"])
+        with fcol2:
+            status_filter = st.selectbox("Filter by range status", ["All", "Above Range", "In Range", "Below Range"])
 
-    fdf = df.copy()
-    if trend_filter != "All":
-        fdf = fdf[fdf["trend"] == trend_filter]
-    status_map_filter = {"Above Range": "high", "In Range": "normal", "Below Range": "low"}
-    if status_filter != "All":
-        fdf = fdf[fdf["status"] == status_map_filter[status_filter]]
+        fdf = df.copy()
+        if trend_filter != "All":
+            fdf = fdf[fdf["trend"] == trend_filter]
+        status_map_filter = {"Above Range": "high", "In Range": "normal", "Below Range": "low"}
+        if status_filter != "All":
+            fdf = fdf[fdf["status"] == status_map_filter[status_filter]]
 
-    st.markdown(f"<p style='color:var(--muted);font-size:.8rem;margin:.5rem 0 1rem'>"
-                f"Showing {len(fdf)} of {len(df)} biomarkers</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color:var(--muted);font-size:.8rem;margin:.5rem 0 1rem'>"
+                    f"Showing {len(fdf)} of {len(df)} biomarkers</p>", unsafe_allow_html=True)
 
-    # Table header
-    st.markdown("""
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.2fr 0.8fr 0.8fr;
-                gap:.5rem;padding:.4rem .8rem;
-                font-size:.7rem;font-weight:600;text-transform:uppercase;
-                letter-spacing:.09em;color:var(--muted);
-                border-bottom:1px solid var(--border);margin-bottom:.3rem">
-      <div>Biomarker</div>
-      <div style="text-align:right">Previous</div>
-      <div style="text-align:right">Current</div>
-      <div style="text-align:right">Change (Δ)</div>
-      <div style="text-align:right">Reference</div>
-      <div style="text-align:center">Trend</div>
-      <div style="text-align:center">Status</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    for _, r in fdf.iterrows():
-        tc    = TREND_COL[r["trend"]]
-        ti    = TREND_ICO[r["trend"]]
-        sc_   = STATUS_COLORS[r["status"]]
-        sb_   = STATUS_BADGE[r["status"]]
-        sl_   = STATUS_LABELS[r["status"]]
-        delta = r["curr"] - r["prev"]
-        d_str = f"+{delta:.2f}" if delta > 0 else f"{delta:.2f}"
-
-        def fmt(v):
-            return str(int(v)) if float(v) == int(float(v)) else f"{v:.2f}"
-
-        st.markdown(f"""
+        # Table header
+        st.markdown("""
         <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.2fr 0.8fr 0.8fr;
-                    gap:.5rem;align-items:center;padding:.65rem .8rem;
-                    background:var(--surface);border:1px solid var(--border);
-                    border-radius:8px;margin-bottom:.35rem;
-                    font-size:.84rem;transition:border-color .15s">
-          <div>
-            <div style="font-weight:500;color:var(--text)">{r['short']}</div>
-            <div style="font-size:.7rem;color:var(--muted);margin-top:.1rem">{r['unit']}</div>
-          </div>
-          <div style="text-align:right;font-family:'Geist Mono',monospace;color:var(--muted)">{fmt(r['prev'])}</div>
-          <div style="text-align:right;font-family:'Geist Mono',monospace;font-weight:600;color:var(--text)">{fmt(r['curr'])}</div>
-          <div style="text-align:right;font-family:'Geist Mono',monospace;color:{tc};font-weight:600">{d_str}</div>
-          <div style="text-align:right;font-family:'Geist Mono',monospace;font-size:.72rem;color:var(--muted)">{r['ref'] or '—'}</div>
-          <div style="text-align:center">
-            <span style="color:{tc};font-size:.8rem;font-weight:600">{ti} {r['trend']}</span>
-          </div>
-          <div style="text-align:center">
-            <span class="badge {sb_}">{sl_}</span>
-          </div>
+                    gap:.5rem;padding:.4rem .8rem;
+                    font-size:.7rem;font-weight:600;text-transform:uppercase;
+                    letter-spacing:.09em;color:var(--muted);
+                    border-bottom:1px solid var(--border);margin-bottom:.3rem">
+          <div>Biomarker</div>
+          <div style="text-align:right">Previous</div>
+          <div style="text-align:right">Current</div>
+          <div style="text-align:right">Change (Δ)</div>
+          <div style="text-align:right">Reference</div>
+          <div style="text-align:center">Trend</div>
+          <div style="text-align:center">Status</div>
         </div>
         """, unsafe_allow_html=True)
 
-    if fdf.empty:
-        st.markdown("<p style='text-align:center;color:var(--muted);padding:2rem'>No biomarkers match the selected filters.</p>", unsafe_allow_html=True)
+        for _, r in fdf.iterrows():
+            tc    = TREND_COL[r["trend"]]
+            ti    = TREND_ICO[r["trend"]]
+            sc_   = STATUS_COLORS[r["status"]]
+            sb_   = STATUS_BADGE[r["status"]]
+            sl_   = STATUS_LABELS[r["status"]]
+            delta = r["curr"] - r["prev"]
+            d_str = f"+{delta:.2f}" if delta > 0 else f"{delta:.2f}"
+
+            def fmt(v):
+                return str(int(v)) if float(v) == int(float(v)) else f"{v:.2f}"
+
+            st.markdown(f"""
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.2fr 0.8fr 0.8fr;
+                        gap:.5rem;align-items:center;padding:.65rem .8rem;
+                        background:var(--surface);border:1px solid var(--border);
+                        border-radius:8px;margin-bottom:.35rem;
+                        font-size:.84rem;transition:border-color .15s">
+              <div>
+                <div style="font-weight:500;color:var(--text)">{r['short']}</div>
+                <div style="font-size:.7rem;color:var(--muted);margin-top:.1rem">{r['unit']}</div>
+              </div>
+              <div style="text-align:right;font-family:'Geist Mono',monospace;color:var(--muted)">{fmt(r['prev'])}</div>
+              <div style="text-align:right;font-family:'Geist Mono',monospace;font-weight:600;color:var(--text)">{fmt(r['curr'])}</div>
+              <div style="text-align:right;font-family:'Geist Mono',monospace;color:{tc};font-weight:600">{d_str}</div>
+              <div style="text-align:right;font-family:'Geist Mono',monospace;font-size:.72rem;color:var(--muted)">{r['ref'] or '—'}</div>
+              <div style="text-align:center">
+                <span style="color:{tc};font-size:.8rem;font-weight:600">{ti} {r['trend']}</span>
+              </div>
+              <div style="text-align:center">
+                <span class="badge {sb_}">{sl_}</span>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        if fdf.empty:
+            st.markdown("<p style='text-align:center;color:var(--muted);padding:2rem'>No biomarkers match the selected filters.</p>", unsafe_allow_html=True)
+    
+    with right_col:
+        # ─────────────────────────────────────────────
+        # RECOMMENDATIONS PANEL (RIGHT SIDE)
+        # ─────────────────────────────────────────────
+        st.markdown("""
+        <div style="background:var(--surface);border:1px solid var(--border);
+                    border-radius:12px;padding:1.3rem;height:fit-content;
+                    position:sticky;top:0;max-height:100vh;overflow-y:auto;
+                    box-shadow:0 4px 12px rgba(0,0,0,0.2)">
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div style="font-family:'Instrument Serif',serif;font-size:1.1rem;
+                    font-style:italic;color:var(--teal);margin-bottom:0.5rem;
+                    letter-spacing:-.01em">
+            💡 Health Insights
+        </div>
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:1.2rem">
+            AI-powered recommendations based on your lab results
+        </div>
+        """, unsafe_allow_html=True)
+        
+        abnormal_bm = df[df["status"] != "normal"]
+        
+        if len(abnormal_bm) > 0:
+            # Show button
+            btn_clicked = st.button("📊 Get Recommendations", key="rec_btn_right", use_container_width=True)
+            
+            if btn_clicked:
+                st.session_state['show_rec'] = True
+            
+            # Show recommendations if button was clicked
+            if st.session_state.get('show_rec', False):
+                st.markdown("<br>", unsafe_allow_html=True)
+                abnormal_records = abnormal_bm.to_dict("records")
+                display_recommendations(abnormal_records, compact=True)
+            else:
+                # Show placeholder when not yet requested
+                st.markdown("""
+                <div style="background:rgba(45,212,191,0.05);border:1px dashed rgba(45,212,191,0.3);
+                            padding:1.2rem;border-radius:8px;margin-top:1rem;text-align:center">
+                    <div style="font-size:.85rem;color:var(--muted);line-height:1.6">
+                        <div style="margin-bottom:.5rem">📋 You have</div>
+                        <div style="font-size:1.3rem;font-weight:600;color:var(--teal);margin-bottom:.5rem">
+                            {len(abnormal_bm)} abnormal
+                        </div>
+                        <div style="margin-bottom:1rem">biomarkers detected</div>
+                        <div style="font-size:.7rem;color:var(--muted);margin-top:.8rem">
+                            Click the button above to get personalized health recommendations from Groq AI
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            # All normal
+            st.markdown("""
+            <div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
+                        padding:1.2rem;border-radius:8px;text-align:center;margin-top:1rem">
+                <div style="font-size:1.5rem;margin-bottom:.5rem">✅</div>
+                <div style="font-weight:600;color:var(--green);margin-bottom:.3rem">Excellent Health</div>
+                <div style="color:var(--muted);font-size:.85rem;line-height:1.5">
+                    All your biomarkers are within normal ranges. Keep up the good health habits!
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
 # FOOTER
