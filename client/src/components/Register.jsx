@@ -20,7 +20,7 @@ const Register = () => {
       });
 
       alert("Registration successful");
-      navigate("/");
+      navigate("/login");
     } catch (err) {
       alert(err.response?.data?.message || "Registration failed");
     }
@@ -91,7 +91,7 @@ const Register = () => {
           <div className="form-footer">
             <p className="login-text">
               Already have an account?{" "}
-              <Link to="/" className="login-link">
+              <Link to="/login" className="login-link">
                 Login here
               </Link>
             </p>

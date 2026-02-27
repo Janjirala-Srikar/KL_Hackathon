@@ -1,15 +1,22 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Landing from "./components/Landing";
 import Login from "./components/Login";
 import Register from "./components/Register";
-import Profile from "./components/Profile";
+import DashBoard from "./components/DashBoard";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Upload from "./components/Upload";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/profile" element={<Profile />} />
+        <Route 
+          path="/dashboard" 
+          element={<ProtectedRoute element={<Upload />} />} 
+        />
       </Routes>
     </BrowserRouter>
   );
