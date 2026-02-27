@@ -1,0 +1,440 @@
+/* =========================================================
+   MedicalUpload.css
+   Uses existing CSS variables from :root — none redefined.
+   ========================================================= */
+
+/* ---------- Google Font Import ---------- */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=Syne:wght@400;500;600;700&display=swap');
+
+/* ---------- Page Layout ---------- */
+.upload-page {
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  /* Subtle grain texture via SVG */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(92, 84, 112, 0.18) 0%, transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+.upload-page-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  width: 100%;
+  max-width: 540px;
+}
+
+/* ---------- Header ---------- */
+.upload-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  align-self: flex-start;
+}
+
+.upload-logo-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.upload-logo-cross {
+  font-size: 16px;
+  color: var(--accent);
+  line-height: 1;
+  display: block;
+}
+
+.upload-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.upload-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.upload-subtitle {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--ink-faint);
+  margin: 0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---------- Main Card ---------- */
+.upload-card {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.upload-card-label {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--ink-faint);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* ---------- Drop Zone ---------- */
+.upload-dropzone {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  border-radius: 14px;
+  border: 1.5px dashed var(--border);
+  background: rgba(30, 26, 40, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.2s ease;
+  overflow: hidden;
+}
+
+.upload-dropzone:hover,
+.upload-dropzone:focus-visible {
+  border-color: var(--accent-warm);
+  background: var(--accent-light);
+  transform: scale(1.012);
+  box-shadow: 0 0 0 4px rgba(155, 150, 176, 0.08), var(--shadow);
+}
+
+.upload-dropzone--active {
+  border-color: var(--accent);
+  background: rgba(219, 216, 227, 0.07);
+  transform: scale(1.015);
+  box-shadow: 0 0 0 6px rgba(219, 216, 227, 0.06), var(--shadow);
+}
+
+/* When file is selected, disable pointer on the zone itself (handled inside) */
+.upload-dropzone--has-file {
+  cursor: default;
+  min-height: 90px;
+}
+
+.upload-dropzone--has-file:hover {
+  transform: none;
+}
+
+/* Hidden native file input */
+.upload-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------- Drop Zone Content (empty state) ---------- */
+.upload-dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 2rem 1.5rem;
+  animation: fadeIn 0.3s ease;
+}
+
+/* Animated concentric ring icon */
+.upload-icon-stack {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-warm);
+}
+
+.upload-icon-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  animation: pulse-ring 3s ease-in-out infinite;
+}
+
+.upload-icon-ring--outer {
+  width: 64px;
+  height: 64px;
+  animation-delay: 0s;
+}
+
+.upload-icon-ring--inner {
+  width: 44px;
+  height: 44px;
+  animation-delay: 0.5s;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+.upload-arrow-icon {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.25s ease;
+}
+
+.upload-dropzone:hover .upload-arrow-icon,
+.upload-dropzone--active .upload-arrow-icon {
+  transform: translateY(-3px);
+}
+
+/* Drop zone text */
+.upload-dropzone-texts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.upload-cta-text {
+  font-family: 'Syne', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.upload-cta-sub {
+  font-size: 0.8rem;
+  font-weight: 300;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+/* PDF badge */
+.upload-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(92, 84, 112, 0.2);
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.03em;
+}
+
+.upload-badge .upload-pdf-icon {
+  opacity: 0.6;
+}
+
+/* ---------- File Preview (filled state) ---------- */
+.upload-file-preview {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0 1.5rem;
+  animation: slideUp 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.upload-file-icon-wrap {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: rgba(92, 84, 112, 0.3);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-warm);
+}
+
+.upload-file-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.upload-file-name {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-file-size {
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.03em;
+}
+
+.upload-remove-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.upload-remove-btn:hover {
+  background: rgba(219, 216, 227, 0.08);
+  color: var(--ink);
+  border-color: var(--accent-warm);
+}
+
+/* ---------- Error ---------- */
+.upload-error {
+  font-size: 0.78rem;
+  color: #e07b7b;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: rgba(224, 123, 123, 0.08);
+  border: 1px solid rgba(224, 123, 123, 0.2);
+  border-radius: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+/* ---------- Actions ---------- */
+.upload-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.upload-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--accent-light);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.18s ease,
+    box-shadow 0.2s ease;
+}
+
+.upload-submit-btn:hover {
+  background: rgba(219, 216, 227, 0.16);
+  border-color: var(--accent-warm);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.upload-submit-btn:active {
+  transform: translateY(0);
+}
+
+/* Ghost (Browse Files) variant */
+.upload-submit-btn--ghost {
+  background: transparent;
+  color: var(--ink-muted);
+}
+
+.upload-submit-btn--ghost:hover {
+  background: var(--accent-light);
+  color: var(--ink);
+}
+
+.upload-submit-arrow {
+  font-size: 1rem;
+  transition: transform 0.2s ease;
+}
+
+.upload-submit-btn:hover .upload-submit-arrow {
+  transform: translateX(3px);
+}
+
+/* ---------- Disclaimer ---------- */
+.upload-disclaimer {
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  text-align: center;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Footer ---------- */
+.upload-footer {
+  font-size: 0.67rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---------- Shared Keyframes ---------- */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 580px) {
+  .upload-card {
+    padding: 1.5rem 1.25rem;
+    border-radius: 16px;
+  }
+
+  .upload-cta-text {
+    font-size: 0.9rem;
+  }
+
+  .upload-dropzone {
+    min-height: 190px;
+  }
+}
