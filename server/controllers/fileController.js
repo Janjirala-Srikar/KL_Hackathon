@@ -3,12 +3,20 @@ const path = require("path");
 const Tesseract = require("tesseract.js");
 const pdf = require("pdf-poppler");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const reportModel = require("../models/reportModel");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 exports.extractFileData = async (req, res) => {
   try {
+    // Check if user is authenticated (from verifyToken middleware)
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: "Unauthorized: No user found" });
+    }
+
+    const userId = req.user.id;
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "No files uploaded" });
     }
@@ -144,11 +152,32 @@ ${extractedText}
         };
       }
 
-      results.push({
+      // ===============================
+      // SAVE TO DATABASE
+      // ===============================
+      const reportData = {
         fileName: file.originalname,
         structured_data: parsedResult.structured_data,
         explanation: parsedResult.explanation,
-      });
+      };
+
+      try {
+        const dbResult = await reportModel.saveMedicalReport(
+          userId,
+          file.originalname,
+          extractedText,
+          parsedResult.structured_data,
+          parsedResult.explanation
+        );
+
+        reportData.id = dbResult.insertId;
+        reportData.storedAt = new Date();
+      } catch (dbError) {
+        console.error("Database Save Error:", dbError);
+        reportData.dbError = "Failed to save to database";
+      }
+
+      results.push(reportData);
     }
 
     res.json({

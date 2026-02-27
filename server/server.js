@@ -23,7 +23,7 @@ app.get("/", (req, res) => {
 app.post("/api/register", userController.register);
 app.post("/api/login", userController.login);
 app.post("/api/send-mail", emailController.sendMailHandler);
-app.post("/api/upload", upload.array("file", 10), fileController.extractFileData);
+app.post("/api/upload", verifyToken, upload.array("file", 10), fileController.extractFileData);
 
 // Protected Route Example
 app.get("/api/profile", verifyToken, (req, res) => {
