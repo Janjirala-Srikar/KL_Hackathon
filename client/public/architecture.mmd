@@ -1,0 +1,33 @@
+flowchart TD
+  subgraph Client
+    A[Upload UI \n(drag & drop)] -->|files| B[API: /api/upload]
+    C[AI Assistant UI] -->|question| D[API: /api/ask]
+    E[Dashboard/Trends] -->|view| F[API: /api/trends]
+  end
+
+  subgraph Server (Express)
+    B --> G[Ingest Controller \nOCR (Tesseract) + PDF conversion]
+    G --> H[LLM Parser \n(Gemini / Groq / OpenAI)]
+    H --> I[Embedding Generator]
+    I --> J[MySQL: reports, tests, embeddings]
+    D --> K[Agent Controller \nIntent detection + RAG]
+    K --> J
+    F --> J
+  end
+
+  subgraph Streamlit
+    S[Streamlit analytics] -->|reads| J
+  end
+
+  subgraph External
+    N[LLM Providers \n(Gemini, Groq, OpenAI)]
+    O[Tesseract & Poppler]
+    P[Email / SMTP]
+  end
+
+  H --> N
+  G --> O
+  Server --> P
+
+  classDef infra fill:#f9f,stroke:#333,stroke-width:1px;
+  class Server,External,Streamlit infra;
