@@ -21,9 +21,10 @@ Repository Layout
 Test Credentials
 ----------------
 
-| Username | Password |
-|----------|----------|
-| test@gmail.com | test123 |
+| Field | Value |
+|-------|-------|
+| Username | admin |
+| Password | admin123 |
 
 Core Flow
 ---------
