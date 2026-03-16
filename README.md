@@ -26,28 +26,47 @@ Core Flow
 4. LLM output is embedded and stored; test values are saved to the DB.
 5. The `/api/ask` endpoint uses embeddings + recent conversation memory to answer user questions — medical questions trigger RAG over saved reports.
 
+System Architecture (high-level)
+-----------------------
+```
+CSV/PDF Upload
+    |
+    v
+Express Server --------- MySQL Database
+    |                        |
+    ├─ OCR (Tesseract)       ├─ Reports
+    ├─ LLM Parser            ├─ Test Values
+    ├─ Embeddings            └─ Chat History
+    ├─ RAG Agent
+    └─ Auth Middleware
+    |
+    v
+React + Vite Frontend (Dashboard, Chat, Upload)
+```
+
 User Flow (UI walkthrough)
 --------------------------
 The application UI follows a simple, user-friendly flow. Below are the typical screens and actions (images are stored in `client/public`):
 
-- Upload reports: drag-and-drop or select files (images/PDF). See Upload image:
+- Home / Branding:
+
+![Home](client/public/Home.png)
+
+- Upload reports: drag-and-drop or select files (images/PDF).
 
 ![Upload](client/public/upload.png)
 
-- Dashboard / Trends: real-time trends and per-user analytics. Example trend view:
+- Dashboard / Trends: real-time trends and per-user analytics.
 
 ![Trends](client/public/trends.png)
 
-- AI Assistant: ask questions and receive context-aware answers (RAG). Assistant UI:
+- AI Assistant: ask questions and receive context-aware answers (RAG).
 
 ![AI Assistant](client/public/AI.png)
 
-- Additional views: alternate trend view and home image for branding.
+- Additional analytics view:
 
 ![Trends Alternate](client/public/trends2.png)
-![Home](client/public/Home.png)
-
-Tip: Replace or extend the images in `client/public` with your project screenshots. The README will render these in GitHub and other Markdown viewers.
 
 Architecture Diagram
 --------------------
@@ -133,51 +152,23 @@ Security & privacy:
 - Treat uploaded medical files and parsed data as protected health information (PHI). Use TLS, encrypted DB connections, and least-privilege access.
 - Rotate and store secrets in a vault; never commit API keys or secrets to git.
 
-Tech Stack (detailed)
----------------------
+Tech Stack
+----------
 
-| Layer | Component | Technology | Version | Purpose |
-|-------|-----------|-----------|---------|---------|
-| **Frontend** | Framework | React | 18.x | UI components and state management |
-| | Build Tool | Vite | 5.x | Fast dev server and bundling |
-| | Styling | CSS / Tailwind CSS | Latest | Component styling and utilities |
-| | HTTP Client | Axios | 1.13.6+ | API calls and request handling |
-| | Auth | JWT (stored in localStorage) | N/A | User authentication and session |
-| **Server** | Runtime | Node.js | 18+ | Server-side runtime |
-| | Framework | Express.js | 4.18.2+ | REST API and routing |
-| | Auth Middleware | jsonwebtoken | 9.0.2+ | JWT token generation and verification |
-| | File Upload | Multer | 2.0.2+ | Multipart form-data handling |
-| | Environment | dotenv | 16.6.1+ | Environment variable loading |
-| | CORS | cors | 2.8.5+ | Cross-origin resource sharing |
-| **OCR & PDF** | OCR Engine | Tesseract.js | 7.0.0+ | Image-to-text extraction (client-side capable) |
-| | PDF Processing | pdf-poppler | 0.2.3+ | PDF-to-image conversion |
-| | PDF Utilities | pdfjs-dist | 3.11.174+ | PDF parsing and rendering |
-| **LLM / AI** | Google AI | @google/generative-ai | 0.24.1+ | Google Gemini API integration |
-| | Groq AI | groq-sdk | 0.37.0+ | Groq LLM API integration |
-| | OpenAI | openai | 6.25.0+ | OpenAI GPT integration |
-| | Embeddings | @xenova/transformers | 2.17.2+ | Local transformer-based embeddings |
-| **Database** | SQL DB | MySQL | 5.7+ | Relational storage for reports, tests, embeddings |
-| | MySQL Driver | mysql2 | 3.5.0+ | Node.js MySQL client |
-| **Email** | SMTP Client | nodemailer | 8.0.1+ | Email sending and notifications |
-| **Audio** | Speech SDK | microsoft-cognitiveservices-speech-sdk | 1.48.0+ | Speech-to-text and voice features |
-| **Security** | Password Hash | bcryptjs | 2.4.3+ | Password hashing and comparison |
-| **Utilities** | Crypto | crypto | Built-in | UUID and hash generation |
-| **Analytics** | Dashboarding | Streamlit | 1.x | Python-based analytics and dashboards |
-| | Data Processing | pandas | 2.x | Data manipulation and analysis (Streamlit) |
-| | Visualization | matplotlib / seaborn | Latest | Plotting and charting (Streamlit) |
-| **Dev Tools** | Process Manager | nodemon | 3.1.14+ | Auto-restart on file changes |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | React 18.x, Vite 5.x, Axios | UI, fast bundling, API calls |
+| **Server** | Node.js 18+, Express.js 4.18+ | REST API and routing |
+| **Authentication** | JWT, jsonwebtoken | Secure token-based auth |
+| **File Handling** | Multer, Tesseract.js, pdf-poppler | File upload, OCR, PDF conversion |
+| **LLM / AI** | Google Gemini, Groq, OpenAI | Text parsing and embeddings |
+| **Embeddings** | @xenova/transformers | Local transformer embeddings |
+| **Database** | MySQL 5.7+, mysql2 | Relational storage for reports & data |
+| **Email** | nodemailer | Email notifications |
+| **Security** | bcryptjs | Password hashing |
+| **Analytics** | Streamlit, pandas, matplotlib | Dashboards and data visualization |
+| **Dev Tools** | nodemon, dotenv | Auto-reload and env management |
 
-Deployment Tech
----------------
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Reverse Proxy | Nginx / Caddy | HTTPS termination, load balancing |
-| Container | Docker | Containerization (optional) |
-| Orchestration | Docker Compose | Local stack orchestration |
-| SSL/TLS | Let's Encrypt | Free SSL certificates |
-| Hosting | Cloud (AWS/GCP/Azure) | Production deployment |
-| CDN | CloudFront / Cloudflare | Static asset delivery |
 
 Key Server Routes
 -----------------
