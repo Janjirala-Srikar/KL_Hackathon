@@ -94,7 +94,8 @@ External Integrations:
       └─ Speech Services (Azure Cognitive)
 ```
 
-Mermaid Diagram (detailed flowchart):
+Architecture Flowchart
+---------------------
 
 ```mermaid
 flowchart TD
@@ -171,8 +172,6 @@ API --> Speech
 %% Styling (Black & White)
 classDef default fill:#ffffff,stroke:#000000,stroke-width:1px,color:#000000
 ```
-
-If you'd like, I can also generate a rendered SVG/PNG using the Mermaid CLI and add it to `client/public`.
 
 Security & Privacy
 -------------------
