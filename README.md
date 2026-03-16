@@ -1,7 +1,7 @@
-KLH — Medical Reports AI Assistant
+Medical Reports AI Assistant ~ QUANTERA
 =================================
 
-KLH is an AI-powered medical report ingestion and assistant platform. The server ingests PDFs and images, extracts text via OCR, uses an LLM to parse structured medical data, stores embeddings and test values, and provides a conversational AI assistant (RAG) for both general and medical-specific questions.
+Quantera is an AI-powered medical report ingestion and assistant platform. The server ingests PDFs and images, extracts text via OCR, uses an LLM to parse structured medical data, stores embeddings and test values, and provides a conversational AI assistant (RAG) for both general and medical-specific questions.
 
 Highlights
 ----------
