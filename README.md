@@ -98,13 +98,13 @@ Mermaid Diagram (detailed flowchart):
 
 ```mermaid
 flowchart TD
-  subgraph Client["Client (React + Vite)"]
+  subgraph Client["🖥️ Client (React + Vite)"]
     A["Upload UI<br/>Drag & Drop"] -->|files| B["POST /api/upload"]
     C["AI Assistant"] -->|question| D["POST /api/ask"]
     E["Dashboard/Trends"] -->|view| F["GET /api/trends"]
   end
 
-  subgraph Server["Server (Express)"]
+  subgraph Server["⚙️ Server (Express)"]
     B --> G["Ingest<br/>OCR + PDF"]
     G --> H["LLM Parser<br/>Gemini/Groq/OpenAI"]
     H --> I["Embeddings"]
@@ -114,11 +114,11 @@ flowchart TD
     F --> J
   end
 
-  subgraph Streamlit["Analytics"]
+  subgraph Analytics["📊 Analytics"]
     S["Streamlit<br/>Dashboards"] -->|reads| J
   end
 
-  subgraph External["External Services"]
+  subgraph External["🔌 External Services"]
     N["LLM APIs"]
     O["Tesseract/Poppler"]
     P["Email/SMTP"]
@@ -128,9 +128,15 @@ flowchart TD
   G --> O
   Server --> P
 
-  classDef infra fill:#f9f,stroke:#333,stroke-width:2px;
-  classDef external fill:#bbf,stroke:#333,stroke-width:2px;
-  class Server,Streamlit infra;
+  classDef client fill:#6b7dff,stroke:#5a6acc,stroke-width:2px,color:#fff;
+  classDef server fill:#eb2dd6,stroke:#c71fa8,stroke-width:2px,color:#fff;
+  classDef analytics fill:#00d4ff,stroke:#0099cc,stroke-width:2px,color:#fff;
+  classDef external fill:#ff6b6b,stroke:#cc5555,stroke-width:2px,color:#fff;
+  classDef default fill:#2d2d2d,stroke:#444,stroke-width:1px,color:#e0e0e0;
+  
+  class Client client;
+  class Server server;
+  class Analytics analytics;
   class External external;
 ```
 
