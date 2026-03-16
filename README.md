@@ -18,6 +18,91 @@ Repository Layout
 - `server/` — Express API, ingestion, agent, controllers, and models
 - `streamlit/` — analysis notebooks and dashboards
 
+System Architecture
+-------------------
+
+```mermaid
+graph TD
+
+%% USER
+User["User"]
+
+%% FRONTEND
+subgraph Frontend["Frontend (React + Vite)"]
+UploadUI["Upload Reports"]
+ChatUI["AI Assistant"]
+Dashboard["Dashboard / Trends"]
+end
+
+%% API LAYER
+subgraph API["Backend API (Node.js + Express)"]
+REST["REST API"]
+Auth["JWT Authentication"]
+end
+
+%% INGESTION PIPELINE
+subgraph Ingestion["Report Processing Pipeline"]
+UploadHandler["File Upload Handler"]
+OCR["OCR Processing (Tesseract + Poppler)"]
+Parser["LLM Parser (Extract Structured JSON)"]
+EmbedGen["Embedding Generator"]
+end
+
+%% AI PIPELINE
+subgraph AI["AI Assistant Pipeline"]
+Agent["AI Agent"]
+VectorSearch["Vector Retrieval"]
+end
+
+%% DATABASE
+subgraph DB["MySQL Database"]
+Reports["Medical Reports"]
+Tests["Test Values"]
+Embeddings["Embeddings"]
+History["Chat History"]
+Users["User Profiles"]
+end
+
+%% EXTERNAL SERVICES
+subgraph External["External Services"]
+LLM["LLM APIs (Gemini / OpenAI / Groq)"]
+OCRTools["OCR Tools"]
+Email["Email Service"]
+end
+
+User --> UploadUI
+User --> ChatUI
+User --> Dashboard
+
+UploadUI --> REST
+ChatUI --> REST
+Dashboard --> REST
+
+REST --> Auth
+
+Auth --> UploadHandler
+UploadHandler --> OCR
+OCR --> Parser
+Parser --> Reports
+Parser --> Tests
+
+Reports --> EmbedGen
+EmbedGen --> Embeddings
+
+Auth --> Agent
+Agent --> VectorSearch
+VectorSearch --> Embeddings
+VectorSearch --> Reports
+Agent --> History
+
+OCR --> OCRTools
+Parser --> LLM
+Agent --> LLM
+REST --> Email
+
+Auth --> Users
+```
+
 Core Flow
 ---------
 1. User uploads medical reports via `/api/upload` (authenticated).
@@ -253,6 +338,13 @@ cd streamlit
 python -m pip install -r requirements.txt
 streamlit run app.py
 ```
+
+Test Credentials
+----------------
+
+| Username | Password |
+|----------|----------|
+| test@gmail.com | test123 |
 
 Running a sample upload
 -----------------------
